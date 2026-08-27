@@ -78,6 +78,7 @@ const MOLECULE_DATA = {
 const container = document.getElementById('canvas-container');
 const controlsPanel = document.getElementById('controls-panel');
 const metricsContent = document.getElementById('metrics-content');
+const diagramSection = document.getElementById('diagram-section');
 
 const tabOptics = document.getElementById('tab-optics');
 const tabOrbits = document.getElementById('tab-orbits');
@@ -113,9 +114,11 @@ function setupEventListeners() {
 function switchTab(moduleName) {
   currentModule = moduleName;
   [tabOptics, tabOrbits, tabChem].forEach(btn => btn.classList.remove('active'));
+  diagramSection.style.display = 'none';
   
   if (moduleName === 'optics') {
     tabOptics.classList.add('active');
+    diagramSection.style.display = 'block';
     loadOpticsModule();
   } else if (moduleName === 'orbits') {
     tabOrbits.classList.add('active');
@@ -141,6 +144,7 @@ function clearScene() {
 // --- MODULE 1: OPTICS ---
 function loadOpticsModule() {
   clearScene();
+  diagramSection.style.display = 'block';
 
   const glassGeom = new THREE.BoxGeometry(20, 10, 4);
   const glassMat = new THREE.MeshPhysicalMaterial({
@@ -224,6 +228,17 @@ function updateOpticsSimulation() {
   ]);
   refractedRay = new THREE.Line(refGeom, new THREE.LineBasicMaterial({ color: 0x38bdf8, linewidth: 3 }));
   scene.add(refractedRay);
+
+  // Update SVG 2D Diagram
+  const svgIncX = 100 - Math.sin(radI) * 45;
+  const svgIncY = 60 - Math.cos(radI) * 45;
+  const svgRefX = 100 + Math.sin(radR) * 45;
+  const svgRefY = 60 + Math.cos(radR) * 45;
+
+  document.getElementById('svg-inc-ray').setAttribute('x1', svgIncX);
+  document.getElementById('svg-inc-ray').setAttribute('y1', svgIncY);
+  document.getElementById('svg-ref-ray').setAttribute('x2', svgRefX);
+  document.getElementById('svg-ref-ray').setAttribute('y2', svgRefY);
 
   metricsContent.innerHTML = `
     <div class="metric-row"><span>Air Index (n1):</span><span class="val">1.00</span></div>
@@ -348,7 +363,7 @@ function updateTrailGeometry() {
   }
 }
 
-// --- MODULE 3: CHEMISTRY MOLECULAR LAB ---
+// --- MODULE 3: CHEMISTRY ---
 function loadChemModule() {
   clearScene();
   renderChemUI();
@@ -381,20 +396,17 @@ function buildMolecule(molKey) {
   const mol = MOLECULE_DATA[molKey];
   const centralPos = new THREE.Vector3(...mol.atoms[0].pos);
 
-  // Render Atoms and Chemical Bonds
   mol.atoms.forEach((atomData, i) => {
     const p = new THREE.Vector3(...atomData.pos);
     const radius = ATOM_RADII[atomData.elem];
     const color = ATOM_COLORS[atomData.elem];
 
-    // Atom Mesh
     const geom = new THREE.SphereGeometry(radius, 32, 32);
     const mat = new THREE.MeshStandardMaterial({ color: color, roughness: 0.2 });
     const atomMesh = new THREE.Mesh(geom, mat);
     atomMesh.position.copy(p);
     scene.add(atomMesh);
 
-    // Chemical Bond Cylinders connecting outer atoms to central atom
     if (i > 0) {
       const dist = p.distanceTo(centralPos);
       const bondGeom = new THREE.CylinderGeometry(0.15, 0.15, dist, 16);
@@ -409,7 +421,6 @@ function buildMolecule(molKey) {
     }
   });
 
-  // Update Data Inspector
   metricsContent.innerHTML = `
     <div class="metric-row"><span>Molecule Name:</span><span class="val">${mol.name}</span></div>
     <div class="metric-row"><span>Formula:</span><span class="val">${mol.formula}</span></div>
@@ -425,7 +436,6 @@ function animate() {
     updateOrbitPhysics();
     if (centralBody) centralBody.rotation.y += 0.005;
   } else if (currentModule === 'chem') {
-    // Gentle rotation for the chemical molecule
     scene.rotation.y += 0.003;
   }
   controls.update();
@@ -439,4 +449,3 @@ function onWindowResize() {
 }
 
 init();
-
