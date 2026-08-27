@@ -1,22 +1,79 @@
 let scene, camera, renderer, controls;
 let currentModule = 'optics';
 
-// Optics Objects
+// --- OPTICS VARIABLES ---
 let glassBlock, incidentRay, refractedRay, normalLine;
 let incidentAngleDeg = 30;
 let nGlass = 1.52;
 
-// Orbit Physics Objects & Variables
+// --- ORBIT VARIABLES ---
 let centralBody, satellite, orbitTrail;
 let trailPoints = [];
 const maxTrailPoints = 300;
-
-// Physics Parameters
-let centralMass = 1000;      // Mass of central star/planet (M)
-let satelliteDist = 18;       // Initial distance (r)
-let launchVelocity = 7.5;     // Tangential velocity (v)
+let centralMass = 1000;
+let satelliteDist = 18;
+let launchVelocity = 7.5;
 let satellitePos, satelliteVel;
 let isOrbitRunning = true;
+
+// --- CHEMISTRY VARIABLES ---
+let currentMolecule = 'H2O';
+const ATOM_COLORS = { H: 0xffffff, O: 0xef4444, C: 0x374151, N: 0x3b82f6 };
+const ATOM_RADII = { H: 0.6, O: 1.0, C: 1.1, N: 1.05 };
+
+const MOLECULE_DATA = {
+  H2O: {
+    name: 'Water',
+    formula: 'H₂O',
+    type: 'Covalent',
+    angle: '104.5°',
+    electrons: '8 Valence Pairs',
+    atoms: [
+      { elem: 'O', pos: [0, 0, 0] },
+      { elem: 'H', pos: [2.0, 1.5, 0] },
+      { elem: 'H', pos: [-2.0, 1.5, 0] }
+    ]
+  },
+  CO2: {
+    name: 'Carbon Dioxide',
+    formula: 'CO₂',
+    type: 'Double Covalent',
+    angle: '180° (Linear)',
+    electrons: '16 Valence Electrons',
+    atoms: [
+      { elem: 'C', pos: [0, 0, 0] },
+      { elem: 'O', pos: [-3.2, 0, 0] },
+      { elem: 'O', pos: [3.2, 0, 0] }
+    ]
+  },
+  CH4: {
+    name: 'Methane',
+    formula: 'CH₄',
+    type: 'Single Covalent',
+    angle: '109.5° (Tetrahedral)',
+    electrons: '8 Valence Electrons',
+    atoms: [
+      { elem: 'C', pos: [0, 0, 0] },
+      { elem: 'H', pos: [0, 2.2, 0] },
+      { elem: 'H', pos: [2.0, -0.8, 0] },
+      { elem: 'H', pos: [-1.7, -0.8, 1.4] },
+      { elem: 'H', pos: [-0.3, -0.8, -2.0] }
+    ]
+  },
+  NH3: {
+    name: 'Ammonia',
+    formula: 'NH₃',
+    type: 'Covalent (Trigonal Pyramidal)',
+    angle: '107°',
+    electrons: '8 Valence Electrons + 1 Lone Pair',
+    atoms: [
+      { elem: 'N', pos: [0, 0.5, 0] },
+      { elem: 'H', pos: [0, -1.2, 1.8] },
+      { elem: 'H', pos: [1.6, -1.2, -0.9] },
+      { elem: 'H', pos: [-1.6, -1.2, -0.9] }
+    ]
+  }
+};
 
 const container = document.getElementById('canvas-container');
 const controlsPanel = document.getElementById('controls-panel');
@@ -31,7 +88,7 @@ function init() {
   scene.background = new THREE.Color(0x0b0f19);
 
   camera = new THREE.PerspectiveCamera(60, container.clientWidth / container.clientHeight, 0.1, 1000);
-  camera.position.set(0, 20, 45);
+  camera.position.set(0, 10, 35);
 
   renderer = new THREE.WebGLRenderer({ antialias: true });
   renderer.setSize(container.clientWidth, container.clientHeight);
@@ -65,7 +122,7 @@ function switchTab(moduleName) {
     loadOrbitsModule();
   } else if (moduleName === 'chem') {
     tabChem.classList.add('active');
-    loadPlaceholderModule('Chemistry Molecular Lab');
+    loadChemModule();
   }
 }
 
@@ -81,7 +138,7 @@ function clearScene() {
   scene.add(light);
 }
 
-// --- MODULE 1: OPTICS & REFRACTION ---
+// --- MODULE 1: OPTICS ---
 function loadOpticsModule() {
   clearScene();
 
@@ -177,23 +234,20 @@ function updateOpticsSimulation() {
   `;
 }
 
-// --- MODULE 2: ORBITAL MECHANICS & GRAVITY ---
+// --- MODULE 2: ORBITAL MECHANICS ---
 function loadOrbitsModule() {
   clearScene();
 
-  // Central Star / Planet
   const starGeom = new THREE.SphereGeometry(3.5, 32, 32);
   const starMat = new THREE.MeshStandardMaterial({ color: 0xfba518, emissive: 0xd97706 });
   centralBody = new THREE.Mesh(starGeom, starMat);
   scene.add(centralBody);
 
-  // Orbiting Satellite / Planet
   const satGeom = new THREE.SphereGeometry(1.0, 24, 24);
   const satMat = new THREE.MeshStandardMaterial({ color: 0x38bdf8, roughness: 0.2 });
   satellite = new THREE.Mesh(satGeom, satMat);
   scene.add(satellite);
 
-  // Dynamic Trajectory Trail Line
   const trailGeom = new THREE.BufferGeometry();
   const trailMat = new THREE.LineBasicMaterial({ color: 0x818cf8, opacity: 0.7, transparent: true });
   orbitTrail = new THREE.Line(trailGeom, trailMat);
@@ -255,32 +309,27 @@ function resetOrbitSimulation() {
 function updateOrbitPhysics() {
   if (!isOrbitRunning) return;
 
-  const dt = 0.02; // Time step
+  const dt = 0.02;
   const r = satellitePos.distanceTo(new THREE.Vector3(0, 0, 0));
 
-  // Collision with central mass
   if (r < 4.0) {
     isOrbitRunning = false;
     metricsContent.innerHTML = `<div class="metric-row"><span style="color:#ef4444; font-weight:bold;">Status: Collided with Central Star!</span></div>`;
     return;
   }
 
-  // Universal Gravitation: a = G * M / r^2 (directed towards center)
   const gAccelMag = (centralMass) / (r * r);
   const accelDir = new THREE.Vector3(0, 0, 0).sub(satellitePos).normalize();
   const accel = accelDir.multiplyScalar(gAccelMag);
 
-  // Velocity Verlet / Euler Integration
   satelliteVel.addScaledVector(accel, dt);
   satellitePos.addScaledVector(satelliteVel, dt);
   satellite.position.copy(satellitePos);
 
-  // Trail line updates
   trailPoints.push(satellitePos.clone());
   if (trailPoints.length > maxTrailPoints) trailPoints.shift();
   updateTrailGeometry();
 
-  // Theoretical circular velocity for comparison: v_circ = sqrt(GM / r)
   const vCirc = Math.sqrt(centralMass / r).toFixed(2);
   const currentSpeed = satelliteVel.length().toFixed(2);
 
@@ -299,10 +348,75 @@ function updateTrailGeometry() {
   }
 }
 
-function loadPlaceholderModule(name) {
+// --- MODULE 3: CHEMISTRY MOLECULAR LAB ---
+function loadChemModule() {
   clearScene();
-  controlsPanel.innerHTML = `<h3>${name}</h3><p style="color:#9ca3af; font-size:0.85rem;">Module coming in Step 3!</p>`;
-  metricsContent.innerHTML = `<div class="metric-row"><span>Status:</span><span class="val">Ready to code</span></div>`;
+  renderChemUI();
+  buildMolecule(currentMolecule);
+}
+
+function renderChemUI() {
+  controlsPanel.innerHTML = `
+    <h3>Chemistry Lab</h3>
+    <div class="control-group">
+      <label>Select Molecule:</label>
+      <select id="select-molecule" style="width:100%; padding:8px; background:#111827; color:#fff; border:1px solid #374151; border-radius:6px;">
+        <option value="H2O" ${currentMolecule === 'H2O' ? 'selected' : ''}>Water (H₂O)</option>
+        <option value="CO2" ${currentMolecule === 'CO2' ? 'selected' : ''}>Carbon Dioxide (CO₂)</option>
+        <option value="CH4" ${currentMolecule === 'CH4' ? 'selected' : ''}>Methane (CH₄)</option>
+        <option value="NH3" ${currentMolecule === 'NH3' ? 'selected' : ''}>Ammonia (NH₃)</option>
+      </select>
+    </div>
+  `;
+
+  document.getElementById('select-molecule').addEventListener('change', (e) => {
+    currentMolecule = e.target.value;
+    buildMolecule(currentMolecule);
+  });
+}
+
+function buildMolecule(molKey) {
+  clearScene();
+
+  const mol = MOLECULE_DATA[molKey];
+  const centralPos = new THREE.Vector3(...mol.atoms[0].pos);
+
+  // Render Atoms and Chemical Bonds
+  mol.atoms.forEach((atomData, i) => {
+    const p = new THREE.Vector3(...atomData.pos);
+    const radius = ATOM_RADII[atomData.elem];
+    const color = ATOM_COLORS[atomData.elem];
+
+    // Atom Mesh
+    const geom = new THREE.SphereGeometry(radius, 32, 32);
+    const mat = new THREE.MeshStandardMaterial({ color: color, roughness: 0.2 });
+    const atomMesh = new THREE.Mesh(geom, mat);
+    atomMesh.position.copy(p);
+    scene.add(atomMesh);
+
+    // Chemical Bond Cylinders connecting outer atoms to central atom
+    if (i > 0) {
+      const dist = p.distanceTo(centralPos);
+      const bondGeom = new THREE.CylinderGeometry(0.15, 0.15, dist, 16);
+      bondGeom.translate(0, dist / 2, 0);
+      bondGeom.rotateX(Math.PI / 2);
+
+      const bondMat = new THREE.MeshStandardMaterial({ color: 0x9ca3af, roughness: 0.5 });
+      const bondMesh = new THREE.Mesh(bondGeom, bondMat);
+      bondMesh.position.copy(centralPos);
+      bondMesh.lookAt(p);
+      scene.add(bondMesh);
+    }
+  });
+
+  // Update Data Inspector
+  metricsContent.innerHTML = `
+    <div class="metric-row"><span>Molecule Name:</span><span class="val">${mol.name}</span></div>
+    <div class="metric-row"><span>Formula:</span><span class="val">${mol.formula}</span></div>
+    <div class="metric-row"><span>Bond Type:</span><span class="val">${mol.type}</span></div>
+    <div class="metric-row"><span>Bond Angle:</span><span class="val">${mol.angle}</span></div>
+    <div class="metric-row"><span>Valence Config:</span><span class="val">${mol.electrons}</span></div>
+  `;
 }
 
 function animate() {
@@ -310,6 +424,9 @@ function animate() {
   if (currentModule === 'orbits') {
     updateOrbitPhysics();
     if (centralBody) centralBody.rotation.y += 0.005;
+  } else if (currentModule === 'chem') {
+    // Gentle rotation for the chemical molecule
+    scene.rotation.y += 0.003;
   }
   controls.update();
   renderer.render(scene, camera);
@@ -322,3 +439,4 @@ function onWindowResize() {
 }
 
 init();
+
