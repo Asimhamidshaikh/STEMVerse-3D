@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>STEM 3D Interactive Lab</title>
+  <link rel="stylesheet" href="style.css">
+  
+  <!-- Three.js and OrbitControls Libraries -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+</head>
+<body>
+  <div id="app">
+    <!-- Sidebar Controls -->
+    <aside id="sidebar">
+      <div class="header">
+        <h2>STEM 3D Lab</h2>
+        <span class="badge">O-Level Edition</span>
+      </div>
+
+      <!-- Module Selection Tabs -->
+      <div class="tab-group">
+        <button id="tab-optics" class="tab-btn active">Optics (Physics)</button>
+        <button id="tab-orbits" class="tab-btn">Orbits (Physics)</button>
+        <button id="tab-chem" class="tab-btn">Chemistry</button>
+      </div>
+
+      <!-- Dynamic Controls Panel -->
+      <div id="controls-panel" class="panel-section">
+        <!-- Controls rendered dynamically via JS -->
+      </div>
+
+      <!-- Dynamic Data Inspector Panel -->
+      <div class="panel-section">
+        <h3>Live Metrics & Math</h3>
+        <div id="metrics-content" class="inspector-card">
+          <!-- Metrics rendered dynamically via JS -->
+        </div>
+      </div>
+    </aside>
+
+    <!-- 3D Canvas Container -->
+    <div id="canvas-container"></div>
+  </div>
+
+  <script src="main.js"></script>
+</body>
+</html>
